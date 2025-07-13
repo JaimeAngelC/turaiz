@@ -1,27 +1,33 @@
-import { View, Text, TextInput, SafeAreaView, } from 'react-native'
-import React, { useRef, useState } from 'react';
-import { router } from 'expo-router';
-import ThemedTextInput from '@/shared/ThemedTextInput';
-import ThemedTextInputPassword from '@/shared/ThemedTextInputPassword';
+import { View, Text, Alert, SafeAreaView, ActivityIndicator, TextInput, Image } from 'react-native'
+import React, { memo, useEffect, useRef, useState } from 'react'
 import { useThemeColor } from '@/hooks/useThemeColor';
-import EmailValidator from '@/hooks/EmailValidator';
+import { router } from 'expo-router';
 import FAB from '@/shared/FAB';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
+import ThemedTextInput from '@/shared/ThemedTextInput';
+import ThemedTextInputPassword from '@/shared/ThemedTextInputPassword';
+import EmailValidator from '@/hooks/EmailValidator';
 import { User } from '@/infrastructure/interfaces/user';
+import { useStoreImagen } from '@/store/useCameraStore';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useAuthService } from '@/services/useAuthService';
+import { useProfileService } from '@/services/useProfileService';
 import ThemedButton from '@/shared/ThemedButton';
 import Toast from 'react-native-toast-message';
+import { useAuth } from '@/provider/auth-provider';
 
-const RegisterScreen = () => {
+
+const ScreenProfile = memo(() => {
     const primaryColor = useThemeColor({}, 'primary');
+    const textColor = useThemeColor({}, "text");
     const color = useThemeColor({}, 'text');
+    const { email } = useAuth();
     const [nombre, setNombre] = useState('');
     const [apellidos, setApellidos] = useState('');
-    const [email, setEmail] = useState('');
+    const [email1, setEmail1] = useState(email);
     const [telefono, setTelefono] = useState('');
     const [password, setPassword] = useState('');
     const [confirmar, setConfirmar] = useState('');
+
     const [focusedInput, setFocusedInput] = useState<number | null>(null);
     const nombreInputRef = useRef<TextInput | null>(null);
     const apellidoInputRef = useRef<TextInput | null>(null);
@@ -29,10 +35,26 @@ const RegisterScreen = () => {
     const telefonoInputRef = useRef<TextInput | null>(null);
     const passwordInputRef = useRef<TextInput | null>(null);
     const repasswordInputRef = useRef<TextInput | null>(null);
-    const [isPosting, setIsPosting] = useState(false);
-    const { register } = useAuthService();
 
-    const handleRegister = async () => {
+    const imageStore = useStoreImagen(state => state.url);
+
+    const { profileQuery, getAvatarQuery, updateProfileMutation } = useProfileService();
+
+    const { data: profile, isLoading: loadingProfile } = profileQuery;
+    const { mutate, isPending } = updateProfileMutation;
+
+    const { data: avatarBase64, isLoading: isLoadingImage } = getAvatarQuery(profile?.avatar_url);
+
+
+    useEffect(() => {
+        if (profile) {
+            setNombre(profile.username);
+            setApellidos(profile.full_name);
+            setTelefono(profile.phone);
+        }
+    }, [profile]);
+
+    const handleEditar = async () => {
         if (nombre === '') {
             nombreInputRef.current?.focus();
             Toast.show({ type: 'error', text1: 'Error al guardar', text2: 'El nombre es requerido', });
@@ -43,27 +65,27 @@ const RegisterScreen = () => {
             Toast.show({ type: 'error', text1: 'Error al guardar', text2: 'El apellido es requerido', });
             return;
         }
-        if (email === '') {
-            emailInputRef.current?.focus();
-            Toast.show({ type: 'error', text1: 'Error al guardar', text2: 'El correo es requerido', });
-            return;
-        }
+        // if (email === '') {
+        //     emailInputRef.current?.focus();
+        //     Alert.alert('Error', 'El correo es requerido');
+        //     return;
+        // }
         if (telefono === '') {
             telefonoInputRef.current?.focus();
             Toast.show({ type: 'error', text1: 'Error al guardar', text2: 'El telefono es requerido', });
             return;
         }
-        if (password === '') {
-            passwordInputRef.current?.focus();
-            Toast.show({ type: 'error', text1: 'Error al guardar', text2: 'La contraseña es requerido', });
-            return;
-        }
-        if (confirmar === '') {
-            repasswordInputRef.current?.focus();
-            Toast.show({ type: 'error', text1: 'Error al guardar', text2: 'Debe registrar la contraseña nuevamente', });
-            return;
-        }
-        if (!EmailValidator(email)) {
+        // if (password === '') {
+        //     passwordInputRef.current?.focus();
+        //     Alert.alert('Error', 'La contraseña es requerido');
+        //     return;
+        // }
+        // if (confirmar === '') {
+        //     repasswordInputRef.current?.focus();
+        //     Alert.alert('Error', 'Confirme la contraseña');
+        //     return;
+        // }
+        if (!EmailValidator(email1!)) {
             Toast.show({ type: 'error', text1: 'Error al guardar', text2: 'El correo no es valido', });
             return;
         }
@@ -73,25 +95,45 @@ const RegisterScreen = () => {
         }
 
         try {
-            setIsPosting(true);
-            const usu: User = { username: nombre, full_name: apellidos, phone: telefono, email, password, image: null }
-            const { error: registrarError } = await register(usu);
-            if (registrarError) {
-                throw registrarError
+
+            const usu: User = { username: nombre, full_name: apellidos, phone: telefono }
+            mutate({
+                username: usu.username,
+                full_name: usu.full_name,
+                phone: usu.phone,
+            });
+            if (!isPending) {
+                Toast.show({
+                    type: 'success',
+                    text1: 'Perfil guardado',
+                    text2: 'Tu información ha sido actualizada.',
+                });
             }
-        } catch (err: unknown) {
-            if (err instanceof Error) {
-              Toast.show({ type: 'error', text1: 'Error al guardar', text2: err.message });
-            } else {
-              Toast.show({ type: 'error', text1: 'Error al guardar', text2: 'Ha ocurrido un error desconocido' });
-            }
-          } finally {
-            setIsPosting(false);
+
+        } catch (err: any) {
+            Alert.alert('Error', err.message);
+        } finally {
+
         }
+    };
+
+    const getImageSource = () => {
+        if (imageStore && imageStore !== '') {
+            return { uri: imageStore };
+        }
+        return { uri: avatarBase64 };
+    };
+
+    if (loadingProfile) {
+        return (
+            <View className='justify-center items-center flex-1'>
+                <ActivityIndicator color={textColor} />
+            </View>
+        )
     }
 
     return (
-        <SafeAreaView style={{ flex: 1, paddingHorizontal: 20, paddingTop: 30 }}>
+        <View style={{ flex: 1, paddingHorizontal: 20, paddingTop: 30 }}>
             <FAB
                 iconName={"arrow-back"}
                 fill={false}
@@ -102,15 +144,42 @@ const RegisterScreen = () => {
                 }}
             />
 
+            <FAB
+                iconName={"camera-sharp"}
+                onPress={() => router.push("camara")}
+                fill={false}
+                style={{ top: 40, right: 30 }}
+            />
             <View className='items-center'>
-                <Text className='text-3xl font-Kanit-Medium mt-4' style={{ color: color }}>Registro</Text>
+                <Text className='text-3xl mt-4 font-Kanit-Medium' style={{ color: color }}>Editar</Text>
             </View>
 
             <KeyboardAwareScrollView
                 enableOnAndroid
-                extraScrollHeight={50}
-                contentContainerStyle={{ padding: 20, marginTop: 24 }}
+                extraScrollHeight={130}
+                showsVerticalScrollIndicator={false}
+                contentContainerStyle={{ padding: 20, alignItems: 'center' }}
             >
+                <View className='bg-gray-200 w-[130px] h-[130px] rounded-full justify-center items-center'>
+                    <>
+                        <Image
+                            className='w-full h-full rounded-full absolute'
+                            source={getImageSource()}
+                            resizeMode="cover"
+                        />
+                        {isLoadingImage || imageStore && (
+                            <View
+                                className='w-full h-full rounded-full'
+                                style={{
+                                    backgroundColor: 'rgba(255,255,255,0.7)', // blanco transparente
+                                }}
+                            />
+                        )}
+                    </>
+
+                </View>
+
+                <View className='mt-4' />
 
                 <ThemedTextInput
                     icon="person"
@@ -118,7 +187,6 @@ const RegisterScreen = () => {
                     placeholder="Nombre"
                     onChangeText={setNombre}
                     value={nombre}
-                    type='default'
                     onFocus={() => setFocusedInput(0)}
                     onBlur={() => setFocusedInput(null)}
                     setInputRef={(ref) => (nombreInputRef.current = ref)}
@@ -144,9 +212,8 @@ const RegisterScreen = () => {
                     focusedInput={focusedInput}
                     placeholder="Correo Electronico"
                     keyboardType='email-address'
-                    onChangeText={setEmail}
-                    value={email}
-                    type='email-address'
+                    onChangeText={setEmail1}
+                    value={email1!}
                     onFocus={() => setFocusedInput(2)}
                     onBlur={() => setFocusedInput(null)}
                     setInputRef={(ref) => (emailInputRef.current = ref)}
@@ -161,7 +228,6 @@ const RegisterScreen = () => {
                     keyboardType='phone-pad'
                     onChangeText={setTelefono}
                     value={telefono}
-                    type='numeric'
                     onFocus={() => setFocusedInput(3)}
                     onBlur={() => setFocusedInput(null)}
                     setInputRef={(ref) => (telefonoInputRef.current = ref)}
@@ -172,7 +238,7 @@ const RegisterScreen = () => {
                 <ThemedTextInputPassword
                     icon="lock-closed"
                     focusedInput={focusedInput}
-                    placeholder="Contraseña"
+                    placeholder="Nueva Contraseña"
                     onChangeText={setPassword}
                     value={password}
                     onFocus={() => setFocusedInput(4)}
@@ -193,20 +259,20 @@ const RegisterScreen = () => {
                     setInputRef={(ref) => (repasswordInputRef.current = ref)}
                     numero={5}
                 />
+
                 <View style={{ margin: 30 }} />
 
             </KeyboardAwareScrollView>
 
             <ThemedButton
-                onPress={handleRegister}
-                isPosting={isPosting}
+                onPress={handleEditar}
+                isPosting={isPending}
                 style={{ bottom: 80 }}
                 color={primaryColor}
-                name='Registrar'
+                name='Guardar'
             />
-        </SafeAreaView>
+        </View>
     )
-}
+})
 
-export default RegisterScreen
-
+export default ScreenProfile

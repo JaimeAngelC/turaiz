@@ -1,8 +1,7 @@
-import React from 'react'
-import { Redirect } from 'expo-router'
+import { Redirect, useRouter } from 'expo-router';
+import { Text, View } from 'react-native';
 
-const index = () => {
-    return <Redirect href={'/(uber-app)/home/welcome'} />
+
+export default function Index() {
+    return null;
 }
-
-export default index

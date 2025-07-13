@@ -34,40 +34,40 @@ export default function AuthProvider(props: Props) {
     useEffect(() => {
         const verificarSesion = async () => {
             try {
-              const { data, error } = await supabase.auth.getSession();      
-              if (error || !data.session) {
-                // Error de refresh token o sesión inválida
-                console.log("Sesión inválida o error al obtener sesión:", error?.message);
-                await supabase.auth.signOut(); // Limpia la sesión corrupta
-                router.replace("/auth/login");
-                return;
-              }      
-              const usuario = data.session.user;
-              setSession(data.session);
-              setUser(usuario);
-              setUserName(usuario.user_metadata.username || '');
-              setEmail(usuario.email || '');
-              router.replace("/inicio");
+                const { data, error } = await supabase.auth.getSession();
+                if (error || !data.session) {
+                    // Error de refresh token o sesión inválida
+                    console.log("Sesión inválida o error al obtener sesión:", error?.message);
+                    await supabase.auth.signOut(); // Limpia la sesión corrupta
+                    router.replace("/auth/login");
+                    return;
+                }
+                const usuario = data.session.user;
+                setSession(data.session);
+                setUser(usuario);
+                setUserName(usuario.user_metadata.username || '');
+                setEmail(usuario.email || '');
+                router.replace("/inicio");
             } catch (err: any) {
-              console.log("Error crítico de sesión:", err.message || err);
-              Toast.show({ type: 'error', text1: 'Sesión caducada', text2: 'Por favor, vuelve a iniciar sesión.', });              
-              await supabase.auth.signOut();
-              router.replace("/auth/login");
+                console.log("Error crítico de sesión:", err.message || err);
+                Toast.show({ type: 'error', text1: 'Sesión caducada', text2: 'Por favor, vuelve a iniciar sesión.', });
+                await supabase.auth.signOut();
+                router.replace("/auth/login");
             } finally {
-              setLoading(false);
+                setLoading(false);
             }
-          };
-      
-          verificarSesion();
+        };
+
+        verificarSesion();
 
         const { data: authListener, } = supabase.auth.onAuthStateChange(async (_, session) => {
             setSession(session);
             setUser(session ? session.user : null)
             setLoading(false);
-            setUserName(session?.user.user_metadata.username);
-            setEmail(session?.user.user_metadata.email);
 
             if (session) {
+                setUserName(session?.user.user_metadata.username);
+                setEmail(session?.user.user_metadata.email);
                 router.replace('/inicio');
             } else {
                 router.replace('/auth/login');
